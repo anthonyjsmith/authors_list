@@ -1,0 +1,328 @@
+#!/usr/bin/env python
+
+# Author: Anthony Smith <A.J.Smith@sussex.ac.uk>
+# History:
+#     AJS  4 Aug 2011 : first version
+#     AJS  7 Jun 2012 : first version on github
+version = "2012-06-07"
+
+usage = """authors_list: print authors list in LaTeX format for journal papers
+Usage:
+   authors_list authors_data journal name1 name2 name3 ...
+       authors_data = file defining authors, institutes and groups
+       journal = mnras, aa, apj
+       names = (a) initials of authors in order, until the first name of a group
+               THEN: (b) names of groups of authors
+                         [AND initials of any additional authors]
+               All authors in (b) will be merged into alphabetical order
+               To exclude a group member, use "-", e.g., "-cde"
+   authors_list authors_data names
+       print names and initials
+   authors_list authors_data groups
+       print names of groups and initials of group members
+Example, for MNRAS paper with author "cde":
+   authors_list authors_data mnras cde
+version: """ + version
+
+
+###############
+## FUNCTIONS ##
+###############
+
+def getSortedInstituteCodes(authorList, authorInstituteCodes):
+    """Return a list of institute codes, in the correct order for authorList.
+
+    authorList = ["J.~Bloggs", "A.N.~Other"]
+    authorInstituteCodes = {"J.~Bloggs":1, "A.N.~Other":[1,"Sussex"]}
+    """
+    instituteCodes = []
+    for author in authorList:
+        codes = authorInstituteCodes[author]
+        if not hasattr(codes, '__iter__'):
+            codes = [codes]
+        for code in codes:
+            if not code in instituteCodes:
+                instituteCodes.append(code)
+    return instituteCodes
+
+
+def getAuthorsStringAA(authorList, authorInstituteCodes, institutesTex,
+                       authorEmails):
+    """Return a string containing LaTeX for A&A authors list.
+
+    authorList = ["J.~Bloggs", "A.N.~Other"]
+    authorInstituteCodes = {"J.~Bloggs":1, "A.N.~Other":[1,"Sussex"]}
+    institutesTex = {1:"Somewhere, Earth", "Sussex":"University of Sussex"}
+    authorEmails = {"J.~Bloggs": "j.bloggs@no.where"}
+    """
+    instituteCodes = getSortedInstituteCodes(authorList, authorInstituteCodes)
+
+    # Associate institute numbers with authors and emails with institutes
+    authorInstituteList = []  # A list of "Author Name\inst{1,2}" strings
+    instituteEmails = {}  # A dictionary of email addresses for each institute
+    for author in authorList:
+        try:
+            codes = authorInstituteCodes[author]
+            if not hasattr(codes, '__iter__'):
+                codes = [codes]  # Only one institute code for this author
+            authorInstituteList.append(
+                author + '\inst{'
+                + ','.join([str(instituteCodes.index(code) + 1)
+                            for code in codes])
+                + '}')
+            try:
+                email = authorEmails[author]
+                try:
+                    instituteEmails[codes[0]].append(email)
+                except KeyError:  # First email address for this institute
+                    instituteEmails[codes[0]] = [email]
+            except KeyError:
+                pass # No email address associated with author
+        except KeyError:
+            authorInstituteList.append(author)
+
+    # Create a list of "Institute Name, Address\\
+    #                   \email{j.bloggs@no.where}" strings
+    instituteEmailList = []
+    for instituteCode in instituteCodes:
+        try:
+            emails = instituteEmails[instituteCode]
+            instituteEmailList.append(
+                institutesTex[instituteCode]
+                + ''.join(['\\\\\n\email{' + email + '}' for email in emails]))
+        except KeyError:
+            instituteEmailList.append(institutesTex[instituteCode])
+
+    # Put it all together
+    authorsString = '\\author{'
+    authorsString += '\n\\and '.join(authorInstituteList)
+    authorsString += '}\n'
+    authorsString += '\\institute{'
+    authorsString += '\n\\and '.join(instituteEmailList)
+    authorsString += '}\n'
+
+    return authorsString
+
+
+def getAuthorsStringApJ(authorList, authorInstituteCodes, institutesTex,
+                        authorEmails):
+    """Return a string containing LaTeX for ApJ authors list.
+
+    authorList = ["J.~Bloggs", "A.N.~Other"]
+    authorInstituteCodes = {"J.~Bloggs":1, "A.N.~Other":"Sussex"}
+    institutesTex = {1:"Somewhere, Earth", "Sussex":"University of Sussex"}
+    authorEmails = {"J.~Bloggs": "j.bloggs@no.where"}
+    """
+    instituteCodes = getSortedInstituteCodes(authorList, authorInstituteCodes)
+    # A list of "Author Name$^{1,2}$" strings
+    authorInstituteList = []
+    for author in authorList:
+        try:
+            codes = authorInstituteCodes[author]
+            if not hasattr(codes, '__iter__'):
+                codes = [codes]
+            authorInstituteList.append(
+                author + '\\altaffilmark{'
+                + ','.join([str(instituteCodes.index(code) + 1)
+                            for code in codes])
+                + '}')
+        except KeyError:
+            authorInstituteList.append(author)
+    # Put it all together
+    authorsString = '\\author{'
+    authorsString += ',\n'.join(authorInstituteList)
+    authorsString += '}\n'
+    authorsString += '\n'.join(['\\altaffiltext{' + str(iInst + 1) + '}{'
+                                + institutesTex[instituteCodes[iInst]].replace(', USA', '')
+                                + '}'
+                                for iInst in range(len(instituteCodes))])
+    authorsString += '\n'
+    return authorsString
+
+
+def getAuthorsStringMNRAS(authorList, authorInstituteCodes, institutesTex,
+                          authorEmails):
+    """Return a string containing LaTeX for MNRAS authors list.
+
+    authorList = ["J.~Bloggs", "A.N.~Other"]
+    authorInstituteCodes = {"J.~Bloggs":1, "A.N.~Other":[1,"Sussex"]}
+    institutesTex = {1:"Somewhere, Earth", "Sussex":"University of Sussex"}
+    authorEmails = {"J.~Bloggs": "j.bloggs@no.where"}
+    """
+    instituteCodes = getSortedInstituteCodes(authorList, authorInstituteCodes)
+
+    # Make a list of strings:
+    # "Author Name$^{1,2}$\thanks{E-mail: \texttt{j.bloggs@no.where}}"
+    authorInstituteList = []
+    for author in authorList:
+        try:
+            codes = authorInstituteCodes[author]
+            if not hasattr(codes, '__iter__'):
+                codes = [codes]  # Only one institute code for this author
+            authorInstituteList.append(
+                author
+                + ',$^{' + ','.join([str(instituteCodes.index(code) + 1)
+                                     for code in codes])
+                + '}$')
+        except KeyError:
+            authorInstituteList.append(author + ',')
+        try:
+            email = authorEmails[author]
+            authorInstituteList[-1] += '\\thanks{E-mail: \\texttt{'
+            authorInstituteList[-1] += email + '}}'
+        except KeyError:
+            pass # No email address for this author
+    # Sort out the punctuation (won't work if the penultimate or ultimate
+    # author has no institute)
+    if len(authorInstituteList) > 1:
+        authorInstituteList[-2] = authorInstituteList[-2].replace(',$', '$')
+        authorInstituteList[-2] += ' and'
+    authorInstituteList[-1] = authorInstituteList[-1].replace(',$', '$')
+
+    # Put it all together
+    if len(authorList) == 1:
+        authorsString = '\\author[' + authorList[0] + ']'
+    elif len(authorList) == 2:
+        authorsString = '\\author[' + authorList[0] + ' and ' + authorList[1] + ']'
+    else:
+        authorsString = '\\author[' + authorList[0] + ' et al.]'
+    authorsString += '\n{\\parbox{\\textwidth}{\\raggedright '
+    authorsString += '\n'.join(authorInstituteList)
+    authorsString += '}\\vspace{0.4cm}\\\\\n'
+    authorsString += '\\parbox{\\textwidth}{\\raggedright '
+    authorsString += '\\\\\n'.join(['$^{' + str(iInst + 1) + '}$'
+                                    + institutesTex[instituteCodes[iInst]]
+                                    for iInst in range(len(instituteCodes))])
+    authorsString += '}}\n'
+
+    return authorsString
+
+
+####################
+## MAIN EXECUTION ##
+####################
+
+def getAuthorsString(args):
+    # Put author data in correct format
+    authorNamesFromInitials = {}
+    authorEmails = {}
+    authorInstituteCodes = {}
+    for author in authors:
+        # Alphabetical order
+        # ["A.N.~Other", "ano", ["A.N.Other@example.com",] "inst1", ..., "instN"],
+        if authorNamesFromInitials.has_key(author[1]):
+            print 'Duplicate initials: "' + author[1] + '"'
+            return
+        authorNamesFromInitials[author[1]] = author[0]
+        if "@" in author[2]:
+            authorEmails[author[0]] = author[2]
+            authorInstitutes = author[3:]
+        else:
+            authorInstitutes = author[2:]
+        authorInstituteCodes[author[0]] = authorInstitutes
+
+    # Parse data from input
+    authorList = []
+    journal = args.pop(0)
+    if not journal in ["mnras", "aa", "apj"]:
+        print "Journal \"" + journal + "\" not recognized"
+        return
+
+    # Search through the arguments for first authors
+    while len(args) > 0:
+        if authorNamesFromInitials.has_key(args[0]):
+            author = authorNamesFromInitials[args.pop(0)]
+            if not author in authorList: # don't add twice
+                authorList.append(author)
+        elif groups.has_key(args[0]):
+            break
+        else:
+            print "Name \"" + args[0] + "\" not recognized"
+            return
+        
+    # Now the remaining args need to be merged into alphabetical order
+
+    # Split args into authors and groups
+    argsAuthors = []
+    argsGroups = []
+    argsAuthorsExclude = []
+    while len(args) > 0:
+        arg = args.pop(0)
+        if authorNamesFromInitials.has_key(arg):
+            argsAuthors.append(arg)
+        elif groups.has_key(arg):
+            argsGroups.append(arg)
+        elif arg.startswith("-") and authorNamesFromInitials.has_key(arg[1:]):
+            argsAuthorsExclude.append(arg[1:])
+        else:
+            raise Exception("Name '" + arg + "' not recognized")
+
+    for author in authors: # Alphabetical order
+        if not author[0] in authorList: # Don't add authors twice
+            if author[1] in argsAuthors:
+                # Remove author from args
+                argsAuthors.pop(argsAuthors.index(author[1]))
+                if not author[1] in argsAuthorsExclude:
+                    authorList.append(author[0])
+            else:
+                # Search groups
+                for groupName in argsGroups:
+                    if groupName in groups.keys():
+                        if author[1] in groups[groupName]:
+                            if not author[1] in argsAuthorsExclude:
+                                authorList.append(author[0])
+                            break # Go to next author
+
+    # Check all argsAuthors have been used
+    if len(argsAuthors) > 0:
+        raise Exception("Names: '" + "', '".join(argsAuthors) + "' not recognized")
+
+    # Email address only for first author
+    paperAuthorEmails = {}
+    if authorEmails.has_key(authorList[0]):
+        paperAuthorEmails[authorList[0]] = authorEmails[authorList[0]]
+            
+    # Create authors string
+    return {"mnras": getAuthorsStringMNRAS,
+            "aa": getAuthorsStringAA,
+            "apj": getAuthorsStringApJ,
+           }[journal](authorList, authorInstituteCodes, institutes, paperAuthorEmails)
+
+if __name__ == "__main__":
+    import sys
+
+    # Check arguments provided (if not, print usage)
+    if len(sys.argv) == 1:
+        print usage
+    elif len(sys.argv) <= 2:
+        print 'Too few arguments (type "authors_list" with no arguments for usage message)'
+    else:
+        execfile(sys.argv[1])
+        if sys.argv[2] == "names":
+            print "(Name initials)"
+            for author in authors:
+                print author[0], author[1]
+        elif sys.argv[2] == "groups":
+            print "(Groups name: members)"
+            for key in groups.keys():
+                print key + ":", ' '.join(groups[key])
+        else:
+            authorsString = getAuthorsString(sys.argv[2:])
+            if authorsString is not None:
+                print ("% authors_list, version " + version + "\n" 
+                       + "% " + " ".join(sys.argv) + "\n" + authorsString)
+
+"""
+Test commands:
+./authors_list
+./authors_list authors_data
+./authors_list authors_data names
+./authors_list authors_data groups
+./authors_list authors_data mnras abs key cde
+./authors_list authors_data aa cde key -abs
+./authors_list authors_data apj abs key
+./authors_list authors_data mnras cde
+./authors_list authors_data m
+./authors_list authors_data m abs
+./authors_list authors_data mnras zzzzzzz
+"""

@@ -1,0 +1,29 @@
+###########################
+## DATA FOR AUTHORS_LIST ##
+###########################
+
+# (1) Authors
+# (2) Institutes
+# (3) Groups of authors
+
+# (1) All authors in alphabetical order [NB r"..." = raw string, so that "\'" doesn't become "'"]
+# Format: [r"A.N.~Other", "ano", ["A.N.Other@example.com",] "inst1", ..., "instN"],
+authors = [
+[r"C.D.~Eggs", "cde", "C.D.Eggs@example.com", "ioa cambridge"],
+[r"A.B.~Spam", "abs", "cfa", "ioa cambridge"],
+]
+
+# (2) Institutes (no particular order) [NB r"..." = raw string, so that "\'" doesn't become "'"]
+institutes = {
+"cfa":r"Harvard-Smithsonian Center for Astrophysics, 60 Garden Street, Cambridge, MA 02138, USA",
+"ioa cambridge":r"Institute of Astronomy, University of Cambridge, Madingley Road, Cambridge CB3 0HA, UK",
+}
+
+# (3) Groups of authors (no particular order of groups, or of initials within each group)
+groups = {
+"key": ["cde", "abs"],
+}
+
+# Combinations of groups
+# Example: add all all members of group "x" to group "y"
+#groups["y"].extend(groups["x"])
