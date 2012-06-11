@@ -4,7 +4,9 @@
 # History:
 #     AJS  4 Aug 2011 : first version
 #     AJS  7 Jun 2012 : first version on github
-version = "2012-06-07"
+#     AJS 11 Jun 2012 : Fixed ugly error behaviour for
+#                       authors_list authors_data mnras abs key zzzzzzz
+version = "2012-06-11"
 
 usage = """authors_list: print authors list in LaTeX format for journal papers
 Usage:
@@ -255,7 +257,8 @@ def getAuthorsString(args):
         elif arg.startswith("-") and authorNamesFromInitials.has_key(arg[1:]):
             argsAuthorsExclude.append(arg[1:])
         else:
-            raise Exception("Name '" + arg + "' not recognized")
+            print "Name \"" + arg + "\" not recognized"
+            return
 
     for author in authors: # Alphabetical order
         if not author[0] in authorList: # Don't add authors twice
@@ -325,4 +328,5 @@ Test commands:
 ./authors_list authors_data m
 ./authors_list authors_data m abs
 ./authors_list authors_data mnras zzzzzzz
+./authors_list authors_data mnras abs key zzzzzzz
 """
